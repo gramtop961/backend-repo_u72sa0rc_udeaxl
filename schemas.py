@@ -1,48 +1,74 @@
 """
-Database Schemas
+Database Schemas for ESL (Electronic Shelf Labels) Management
 
-Define your MongoDB collection schemas here using Pydantic models.
-These schemas are used for data validation in your application.
+Each Pydantic model represents a MongoDB collection. Collection name is the lowercase of the class name.
 
-Each Pydantic model represents a collection in your database.
-Model name is converted to lowercase for the collection name:
-- User -> "user" collection
-- Product -> "product" collection
-- BlogPost -> "blogs" collection
+Use these models in your endpoints for validation. The helper functions in database.py
+handle connection and basic CRUD helpers.
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
+from datetime import datetime
 
-# Example schemas (replace with your own):
 
-class User(BaseModel):
+class TobaccoProduct(BaseModel):
     """
-    Users collection schema
-    Collection name: "user" (lowercase of class name)
+    Products available in the tobacconist catalog
+    Collection: "tobaccoproduct"
     """
-    name: str = Field(..., description="Full name")
-    email: str = Field(..., description="Email address")
-    address: str = Field(..., description="Address")
-    age: Optional[int] = Field(None, ge=0, le=120, description="Age in years")
-    is_active: bool = Field(True, description="Whether user is active")
+    name: str = Field(..., description="Product name (e.g., Marlboro Gold 20)")
+    sku: str = Field(..., description="Internal SKU or code")
+    brand: Optional[str] = Field(None, description="Brand name")
+    category: Optional[str] = Field("Tabacco", description="Category")
+    barcode: Optional[str] = Field(None, description="EAN/UPC barcode")
+    price: float = Field(..., ge=0, description="Current price")
+    tax_class: Optional[str] = Field("AAMS", description="Tax class / regime")
+    esl_id: Optional[str] = Field(None, description="Assigned ESL identifier")
+    stock: Optional[int] = Field(0, ge=0, description="Stock quantity")
+    active: bool = Field(True, description="Whether the item is active")
 
-class Product(BaseModel):
-    """
-    Products collection schema
-    Collection name: "product" (lowercase of class name)
-    """
-    title: str = Field(..., description="Product title")
-    description: Optional[str] = Field(None, description="Product description")
-    price: float = Field(..., ge=0, description="Price in dollars")
-    category: str = Field(..., description="Product category")
-    in_stock: bool = Field(True, description="Whether product is in stock")
 
-# Add your own schemas here:
-# --------------------------------------------------
+class Store(BaseModel):
+    """Tobacconist store profile. Collection: "store"""
+    name: str
+    address: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = "IT"
 
-# Note: The Flames database viewer will automatically:
-# 1. Read these schemas from GET /schema endpoint
-# 2. Use them for document validation when creating/editing
-# 3. Handle all database operations (CRUD) directly
-# 4. You don't need to create any database endpoints!
+
+class Label(BaseModel):
+    """Physical ESL labels. Collection: "label"""
+    esl_id: str = Field(..., description="Unique ESL device ID")
+    status: Optional[str] = Field("idle", description="idle|assigned|error")
+    battery: Optional[int] = Field(None, ge=0, le=100)
+    last_sync: Optional[datetime] = None
+    product_sku: Optional[str] = Field(None, description="Linked product SKU if assigned")
+
+
+class PriceUpdate(BaseModel):
+    """Scheduled or executed price changes. Collection: "priceupdate"""
+    product_sku: str
+    old_price: float = Field(..., ge=0)
+    new_price: float = Field(..., ge=0)
+    scheduled_at: Optional[datetime] = None
+    status: str = Field("done", description="pending|done|failed")
+    note: Optional[str] = None
+
+
+# This lightweight schema is used for partial product updates from the UI
+class ProductUpdate(BaseModel):
+    name: Optional[str] = None
+    sku: Optional[str] = None
+    brand: Optional[str] = None
+    category: Optional[str] = None
+    barcode: Optional[str] = None
+    price: Optional[float] = Field(None, ge=0)
+    tax_class: Optional[str] = None
+    esl_id: Optional[str] = None
+    stock: Optional[int] = Field(None, ge=0)
+    active: Optional[bool] = None
+
+
+class BulkProducts(BaseModel):
+    items: List[TobaccoProduct]
